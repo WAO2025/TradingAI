@@ -27,13 +27,12 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
     const volumeGrowth = ((curr.Volume - prev.Volume) / prev.Volume) * 100;
 
-    if (volumeGrowth > 100) {
+    if (volumeGrowth >= 100) {
       signals.push(
-        `📊 ${curr.Date || "Дата не указана"} — объём вырос на ${volumeGrowth.toFixed(1)}%`
+        `🚀 ${curr.Date}: Объём вырос на ${volumeGrowth.toFixed(1)}% по сравнению с предыдущим днём`
       );
     }
   }
 
   res.status(200).json({ signals });
 }
-
