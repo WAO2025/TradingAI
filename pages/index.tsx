@@ -7,6 +7,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [statusText, setStatusText] = useState("Ожидание файла...");
   const [progress, setProgress] = useState(0);
+  const [chatInput, setChatInput] = useState("");
+  const [chatResponse, setChatResponse] = useState<string[]>([]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -37,6 +39,18 @@ export default function Home() {
           });
       },
     });
+  };
+
+  const handleChatSubmit = async () => {
+    if (!chatInput.trim()) return;
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: chatInput }),
+    });
+    const data = await response.json();
+    setChatResponse([...chatResponse, `🧠 ${chatInput}`, `💬 ${data.reply}`]);
+    setChatInput("");
   };
 
   return (
@@ -72,6 +86,23 @@ export default function Home() {
           <li key={idx}>{r}</li>
         ))}
       </ul>
+
+      <div style={{ marginTop: "3rem", borderTop: "1px solid #ccc", paddingTop: "1rem" }}>
+        <h2>💬 Командный чат</h2>
+        <input
+          type="text"
+          value={chatInput}
+          onChange={(e) => setChatInput(e.target.value)}
+          placeholder="Например: Найди рост > 200%"
+          style={{ width: "80%", marginRight: "1rem" }}
+        />
+        <button onClick={handleChatSubmit}>Отправить</button>
+        <div style={{ marginTop: "1rem" }}>
+          {chatResponse.map((msg, idx) => (
+            <p key={idx}>{msg}</p>
+          ))}
+        </div>
+      </div>
     </main>
   );
 }
