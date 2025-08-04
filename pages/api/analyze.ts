@@ -3,7 +3,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 interface Row {
   Date: string;
   Volume: number;
-  [key: string]: any;
+  [key: string]: string | number;
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
