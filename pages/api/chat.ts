@@ -8,16 +8,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { message, history = [] } = req.body;
 
+  console.log("📨 Запрос в чат:", { message, history });
+
   if (!message || typeof message !== "string") {
     return res.status(400).json({ message: "Missing or invalid message" });
   }
 
   if (!process.env.OPENAI_API_KEY) {
+    console.error("❌ Нет ключа OPENAI_API_KEY");
     return res.status(500).json({ message: "Missing OpenAI API key" });
   }
 
   try {
-    console.log("🔐 KEY EXISTS:", !!process.env.OPENAI_API_KEY);
+    console.log("🔐 Ключ существует, отправляем запрос...");
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -29,25 +32,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         model: "gpt-4",
         messages: [...history, { role: "user", content: message }],
         temperature: 0.7,
-      })
+      }),
     });
 
     const data = await response.json();
+    console.log("📬 Ответ от OpenAI:", data);
 
     if (data.error) {
-      console.error("OpenAI error:", data.error);
+      console.error("⚠️ Ошибка от OpenAI:", data.error);
       return res.status(500).json({ message: data.error.message });
     }
 
     const reply = data?.choices?.[0]?.message?.content;
     if (!reply) {
+      console.error("⚠️ OpenAI не вернул reply");
       return res.status(500).json({ message: "OpenAI не вернул ответ." });
     }
 
     res.status(200).json({ reply });
 
   } catch (error) {
-    console.error("Server error:", error);
+    console.error("💥 Ошибка сервера:", error);
     res.status(500).json({ message: "Ошибка сервера." });
   }
 }
