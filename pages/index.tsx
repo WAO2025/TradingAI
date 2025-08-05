@@ -9,6 +9,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [chatInput, setChatInput] = useState("");
   const [chatResponse, setChatResponse] = useState<string[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -43,20 +44,35 @@ export default function Home() {
 
   const handleChatSubmit = async () => {
     if (!chatInput.trim()) return;
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: chatInput }),
-    });
-    const data = await response.json();
-    setChatResponse([...chatResponse, `🧠 ${chatInput}`, `💬 ${data.reply}`]);
+
+    const userMessage = `🧠 ${chatInput}`;
+    setChatResponse((prev) => [...prev, userMessage]);
     setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: chatInput }),
+      });
+
+      const data = await response.json();
+      const botMessage = `💬 ${data.reply}`;
+      setChatResponse((prev) => [...prev, botMessage]);
+    } catch (error) {
+      setChatResponse((prev) => [...prev, "❌ Ошибка при обращении к API"]);
+    } finally {
+      setChatLoading(false);
+    }
   };
 
   return (
-    <main style={{ padding: "2rem" }}>
+    <main style={{ padding: "2rem", fontFamily: "sans-serif" }}>
       <h1>📈 TradingAI — CSV анализ объёма</h1>
+
       <input type="file" accept=".csv" onChange={handleFileUpload} />
+
       <div style={{ marginTop: "1rem" }}>
         <p>{statusText}</p>
         {loading && (
@@ -81,6 +97,7 @@ export default function Home() {
           </div>
         )}
       </div>
+
       <ul style={{ marginTop: "1rem" }}>
         {result.map((r, idx) => (
           <li key={idx}>{r}</li>
@@ -89,17 +106,21 @@ export default function Home() {
 
       <div style={{ marginTop: "3rem", borderTop: "1px solid #ccc", paddingTop: "1rem" }}>
         <h2>💬 Командный чат</h2>
-        <input
-          type="text"
-          value={chatInput}
-          onChange={(e) => setChatInput(e.target.value)}
-          placeholder="Например: Найди рост > 200%"
-          style={{ width: "80%", marginRight: "1rem" }}
-        />
-        <button onClick={handleChatSubmit}>Отправить</button>
-        <div style={{ marginTop: "1rem" }}>
+        <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
+          <input
+            type="text"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            placeholder="Например: Найди рост > 200%"
+            style={{ flex: 1, padding: "0.5rem" }}
+          />
+          <button onClick={handleChatSubmit} disabled={chatLoading}>
+            {chatLoading ? "⏳..." : "Отправить"}
+          </button>
+        </div>
+        <div style={{ maxHeight: "300px", overflowY: "auto", background: "#f9f9f9", padding: "1rem", borderRadius: "8px" }}>
           {chatResponse.map((msg, idx) => (
-            <p key={idx}>{msg}</p>
+            <p key={idx} style={{ margin: "0.3rem 0" }}>{msg}</p>
           ))}
         </div>
       </div>
