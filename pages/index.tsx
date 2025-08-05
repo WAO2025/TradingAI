@@ -68,7 +68,7 @@ export default function Home() {
   };
 
   return (
-    <main style={{ padding: "2rem", fontFamily: "sans-serif" }}>
+    <main style={{ padding: "2rem", fontFamily: "sans-serif", color: "white", backgroundColor: "#000", minHeight: "100vh" }}>
       <h1>📈 TradingAI — CSV анализ объёма</h1>
 
       <input type="file" accept=".csv" onChange={handleFileUpload} />
@@ -80,7 +80,7 @@ export default function Home() {
             style={{
               height: "20px",
               width: "100%",
-              backgroundColor: "#ddd",
+              backgroundColor: "#333",
               borderRadius: "10px",
               overflow: "hidden",
               marginTop: "0.5rem",
@@ -104,7 +104,7 @@ export default function Home() {
         ))}
       </ul>
 
-      <div style={{ marginTop: "3rem", borderTop: "1px solid #ccc", paddingTop: "1rem" }}>
+      <div style={{ marginTop: "3rem", borderTop: "1px solid #444", paddingTop: "1rem" }}>
         <h2>💬 Командный чат</h2>
         <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
           <input
@@ -112,13 +112,41 @@ export default function Home() {
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
             placeholder="Например: Найди рост > 200%"
-            style={{ flex: 1, padding: "0.5rem" }}
+            style={{
+              flex: 1,
+              padding: "0.5rem",
+              backgroundColor: "#111",
+              color: "white",
+              border: "1px solid #555",
+              borderRadius: "4px",
+            }}
           />
-          <button onClick={handleChatSubmit} disabled={chatLoading}>
+          <button
+            onClick={handleChatSubmit}
+            disabled={chatLoading}
+            style={{
+              backgroundColor: "#4caf50",
+              border: "none",
+              color: "white",
+              padding: "0.5rem 1rem",
+              borderRadius: "4px",
+              cursor: "pointer",
+            }}
+          >
             {chatLoading ? "⏳..." : "Отправить"}
           </button>
         </div>
-        <div style={{ maxHeight: "300px", overflowY: "auto", background: "#f9f9f9", padding: "1rem", borderRadius: "8px" }}>
+        <div
+          style={{
+            maxHeight: "300px",
+            overflowY: "auto",
+            background: "#111",
+            color: "white",
+            padding: "1rem",
+            borderRadius: "8px",
+            border: "1px solid #333",
+          }}
+        >
           {chatResponse.map((msg, idx) => (
             <p key={idx} style={{ margin: "0.3rem 0" }}>{msg}</p>
           ))}
