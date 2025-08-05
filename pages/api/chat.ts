@@ -6,7 +6,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ message: "Method not allowed" });
   }
 
-  const { message, history = [] } = req.body;
+  const { message, history = [], context = "" } = req.body;
 
   console.log("📨 Запрос в чат:", { message, history });
 
@@ -22,6 +22,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     console.log("🔐 Ключ существует, отправляем запрос...");
 
+    const systemPrompt = context
+      ? `Вот список сигналов из CSV. Отвечай только по нему:\n\n${context}`
+      : "Ты ассистент по анализу сигналов. Отвечай строго по данным пользователя.";
+
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -30,8 +34,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       body: JSON.stringify({
         model: "gpt-4",
-        messages: [...history, { role: "user", content: message }],
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...history,
+          { role: "user", content: message }
+        ],
         temperature: 0.7,
+        max_tokens: 1024
       }),
     });
 
