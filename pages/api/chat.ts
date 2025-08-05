@@ -7,7 +7,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ message: "Method not allowed" });
   }
 
-  const { message, history = [] } = req.body;
+  const { message: prompt, history = [] } = req.body;
 
   if (!process.env.OPENAI_API_KEY) {
     return res.status(500).json({ message: "Missing OpenAI API key" });
