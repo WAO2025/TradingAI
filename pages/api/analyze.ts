@@ -6,7 +6,7 @@ interface Row {
   [key: string]: string | number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method not allowed" });

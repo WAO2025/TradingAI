@@ -1,13 +1,13 @@
 // pages/api/chat.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method not allowed" });
   }
 
-  const { message: prompt, history = [] } = req.body;
+  const { message, history = [] } = req.body;
 
   if (!process.env.OPENAI_API_KEY) {
     return res.status(500).json({ message: "Missing OpenAI API key" });
