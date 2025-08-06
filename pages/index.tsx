@@ -46,10 +46,16 @@ export default function Home() {
     if (!chatInput.trim()) return;
 
     const userMessage = `🧠 ${chatInput}`;
-    const updatedHistory = [...chatResponse, userMessage];
-    setChatResponse(updatedHistory);
+    const updatedResponse = [...chatResponse, userMessage];
+    setChatResponse(updatedResponse);
     setChatInput("");
     setChatLoading(true);
+
+    // Преобразуем в формат [{ role, content }]
+    const messages = updatedResponse.map((msg) => ({
+      role: msg.startsWith("🧠") ? "user" : "assistant",
+      content: msg.replace(/^🧠 |^💬 /, ""),
+    }));
 
     try {
       const response = await fetch("/api/chat", {
@@ -57,8 +63,8 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: chatInput,
-          history: updatedHistory,
-          context: result.join("\n")
+          history: messages,
+          context: result.join("\n"),
         }),
       });
 
