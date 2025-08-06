@@ -1,3 +1,4 @@
+// pages/api/analyze.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 
 interface Row {
@@ -6,6 +7,15 @@ interface Row {
   [key: string]: string | number;
 }
 
+let lastUploadedData: Row[] = [];
+
+export function setLastUploadedData(data: Row[]) {
+  lastUploadedData = data;
+}
+
+export function getLastUploadedData(): Row[] {
+  return lastUploadedData;
+}
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -17,6 +27,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (!Array.isArray(rows)) {
     return res.status(400).json({ message: "Invalid data" });
   }
+
+  // Сохраняем в память для чата
+  setLastUploadedData(rows);
 
   const signals: string[] = [];
 

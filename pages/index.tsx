@@ -46,7 +46,8 @@ export default function Home() {
     if (!chatInput.trim()) return;
 
     const userMessage = `🧠 ${chatInput}`;
-    setChatResponse((prev) => [...prev, userMessage]);
+    const updatedHistory = [...chatResponse, userMessage];
+    setChatResponse(updatedHistory);
     setChatInput("");
     setChatLoading(true);
 
@@ -54,7 +55,11 @@ export default function Home() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: chatInput }),
+        body: JSON.stringify({
+          message: chatInput,
+          history: updatedHistory,
+          context: result.join("\n")
+        }),
       });
 
       const data = await response.json();
