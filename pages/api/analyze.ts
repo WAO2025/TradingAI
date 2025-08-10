@@ -3,73 +3,100 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 interface Row {
   Date: string;
+  Close: number;
   Volume: number;
   [key: string]: string | number;
 }
 
-let lastUploadedData: Row[] = [];
-
-export function setLastUploadedData(data: Row[]) {
-  lastUploadedData = data;
+function toNum(v: unknown): number {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") return Number(v);
+  return NaN;
 }
 
-export function getLastUploadedData(): Row[] {
-  return lastUploadedData;
+function calcMA(data: Row[], period: number, idx: number) {
+  if (idx < period) return null;
+  const slice = data.slice(idx - period, idx);
+  const sum = slice.reduce((acc, row) => acc + (toNum(row.Close) || 0), 0);
+  return sum / period;
+}
+
+function calcRSI(data: Row[], period = 14, idx: number) {
+  if (idx < period) return null;
+  let gains = 0, losses = 0;
+  for (let i = idx - period + 1; i <= idx; i++) {
+    const curr = toNum(data[i].Close) || 0;
+    const prev = toNum(data[i - 1]?.Close) || 0;
+    const diff = curr - prev;
+    if (diff > 0) gains += diff;
+    else losses -= diff;
+  }
+  const rs = gains / (losses || 1);
+  return 100 - 100 / (1 + rs);
 }
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ message: "Method not allowed" });
-  }
+  if (req.method !== "POST") return res.status(405).json({ message: "Method not allowed" });
 
-  const rows: Row[] = req.body;
+  const { rows, filters } = req.body || {};
+  if (!Array.isArray(rows)) return res.status(400).json({ message: "Invalid data" });
 
-  if (!Array.isArray(rows)) {
-    return res.status(400).json({ message: "Invalid data" });
-  }
-
-  // Сохраняем в память для чата
-  setLastUploadedData(rows);
+  // Приводим входные данные к числам
+  const data: Row[] = rows.map((r: any) => ({
+    ...r,
+    Close: toNum(r.Close),
+    Volume: toNum(r.Volume),
+  }));
 
   const signals: string[] = [];
 
-  for (let i = 1; i < rows.length; i++) {
-    const prev = rows[i - 1];
-    const curr = rows[i];
+  for (let i = 1; i < data.length; i++) {
+    const curr = data[i];
+    const prev = data[i - 1];
+    if (!curr || !prev) continue;
+    if (!(toNum(curr.Close) > 0) || !(toNum(curr.Volume) > 0) || !(toNum(prev.Volume) > 0)) continue;
 
-    if (!prev.Volume || !curr.Volume) continue;
+    const rsi = calcRSI(data, 14, i);
+    const ma9 = calcMA(data, 9, i);
+    const ma21 = calcMA(data, 21, i);
+    const ma50 = calcMA(data, 50, i);
+    const ma200 = calcMA(data, 200, i);
 
-    const volumeGrowth1d = ((curr.Volume - prev.Volume) / prev.Volume) * 100;
+    const vol1d = ((toNum(curr.Volume) - toNum(prev.Volume)) / toNum(prev.Volume)) * 100;
 
-    // Среднее за 5 дней до текущей
-    const start5d = Math.max(0, i - 5);
-    const avg5d =
-      rows.slice(start5d, i).reduce((sum, r) => sum + (typeof r.Volume === "number" ? r.Volume : 0), 0) /
-      (i - start5d || 1);
+    let parts: string[] = [
+      `${curr.Date}`,
+      `Close: ${toNum(curr.Close).toFixed(2)}`,
+      `RSI: ${rsi !== null ? rsi.toFixed(1) : "—"}`,
+      `VolΔ: ${isFinite(vol1d) ? vol1d.toFixed(1) + "%" : "—"}`
+    ];
 
-    const volumeGrowth5d = ((curr.Volume - avg5d) / avg5d) * 100;
+    // Сильные сигналы
+    if (ma50 && ma200 && ma50 > ma200) parts.push("🟢 Golden Cross");
+    if (ma50 && ma200 && ma50 < ma200) parts.push("🔴 Death Cross");
+    if (rsi !== null && rsi < 30) parts.push("📉 Перепродан");
+    if (rsi !== null && rsi > 70) parts.push("📈 Перекуплен");
+    if (isFinite(vol1d) && vol1d > 200) parts.push("💎 Всплеск объёма");
 
-    // Среднее за 21 день до текущей
-    const start21d = Math.max(0, i - 21);
-    const avg21d =
-      rows.slice(start21d, i).reduce((sum, r) => sum + (typeof r.Volume === "number" ? r.Volume : 0), 0) /
-      (i - start21d || 1);
-
-    const volumeGrowth21d = ((curr.Volume - avg21d) / avg21d) * 100;
-
-    // Цветовая логика по росту за 1 день
-    let color = "";
-    if (volumeGrowth1d >= 300) color = "🟩";
-    else if (volumeGrowth1d >= 150) color = "🟨";
-    else if (volumeGrowth1d >= 100) color = "🟥";
-
-    if (color) {
-      signals.push(
-        `${color} ${curr.Date}: объём вырос на ${volumeGrowth1d.toFixed(1)}% (1д), ${volumeGrowth5d.toFixed(
-          1
-        )}% (5д), ${volumeGrowth21d.toFixed(1)}% (21д)`
-      );
+    // Применяем ручные фильтры
+    if (filters?.minRSI && rsi !== null && rsi < Number(filters.minRSI)) continue;
+    if (filters?.maxRSI && rsi !== null && rsi > Number(filters.maxRSI)) continue;
+    if (filters?.minVolumeChange && isFinite(vol1d) && vol1d < Number(filters.minVolumeChange)) continue;
+    if (filters?.maxVolumeChange && isFinite(vol1d) && vol1d > Number(filters.maxVolumeChange)) continue;
+    if (filters?.maFilter) {
+      const maMap: Record<string, number | null> = { "9": ma9, "21": ma21, "50": ma50, "200": ma200 };
+      const sel = maMap[filters.maFilter];
+      if (!sel || toNum(curr.Close) < sel) continue; // требуем Цена > выбранной MA
     }
+
+    // Быстрые пресеты
+    if (filters?.quickSignal === "RSI_LOW" && !(rsi !== null && rsi < 30)) continue;
+    if (filters?.quickSignal === "RSI_HIGH" && !(rsi !== null && rsi > 70)) continue;
+    if (filters?.quickSignal === "VOLUME" && !(isFinite(vol1d) && vol1d > 200)) continue;
+    if (filters?.quickSignal === "GOLDEN" && !(ma50 && ma200 && ma50 > ma200)) continue;
+    if (filters?.quickSignal === "DEATH" && !(ma50 && ma200 && ma50 < ma200)) continue;
+
+    signals.push(parts.join(" | "));
   }
 
   res.status(200).json({ signals });
