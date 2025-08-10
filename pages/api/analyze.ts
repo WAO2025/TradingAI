@@ -8,22 +8,37 @@ interface Row {
   [key: string]: string | number;
 }
 
+interface Filters {
+  minRSI?: string;
+  maxRSI?: string;
+  minVolumeChange?: string;
+  maxVolumeChange?: string;
+  maFilter?: "" | "9" | "21" | "50" | "200";
+  quickSignal?: "" | "RSI_LOW" | "RSI_HIGH" | "VOLUME" | "GOLDEN" | "DEATH";
+}
+
+interface Body {
+  rows?: Array<Record<string, unknown>>;
+  filters?: Filters;
+}
+
 function toNum(v: unknown): number {
   if (typeof v === "number") return v;
   if (typeof v === "string") return Number(v);
   return NaN;
 }
 
-function calcMA(data: Row[], period: number, idx: number) {
+function calcMA(data: Row[], period: number, idx: number): number | null {
   if (idx < period) return null;
   const slice = data.slice(idx - period, idx);
   const sum = slice.reduce((acc, row) => acc + (toNum(row.Close) || 0), 0);
   return sum / period;
 }
 
-function calcRSI(data: Row[], period = 14, idx: number) {
+function calcRSI(data: Row[], period = 14, idx: number): number | null {
   if (idx < period) return null;
-  let gains = 0, losses = 0;
+  let gains = 0;
+  let losses = 0;
   for (let i = idx - period + 1; i <= idx; i++) {
     const curr = toNum(data[i].Close) || 0;
     const prev = toNum(data[i - 1]?.Close) || 0;
@@ -36,28 +51,25 @@ function calcRSI(data: Row[], period = 14, idx: number) {
 }
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ message: "Method not allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ message: "Method not allowed" });
+  }
 
-  const { rows, filters } = (req.body ?? {}) as {
-    rows?: Array<Record<string, unknown>>;
-    filters?: {
-      minRSI?: string;
-      maxRSI?: string;
-      minVolumeChange?: string;
-      maxVolumeChange?: string;
-      maFilter?: "" | "9" | "21" | "50" | "200";
-      quickSignal?: "" | "RSI_LOW" | "RSI_HIGH" | "VOLUME" | "GOLDEN" | "DEATH";
-    };
-  };
+  const { rows, filters }: Body = (req.body ?? {}) as Body;
 
-  if (!Array.isArray(rows)) return res.status(400).json({ message: "Invalid data" });
+  if (!Array.isArray(rows)) {
+    return res.status(400).json({ message: "Invalid data" });
+  }
 
   // Приводим входные данные к типу Row и числам (без any)
-  const data: Row[] = rows.map((r) => ({
-    ...(r as Record<string, string | number>),
-    Close: toNum((r as Record<string, unknown>)["Close"]),
-    Volume: toNum((r as Record<string, unknown>)["Volume"]),
-  })) as Row[];
+  const data: Row[] = rows.map((r) => {
+    const rec = r as Record<string, string | number>;
+    return {
+      ...rec,
+      Close: toNum(rec["Close"]),
+      Volume: toNum(rec["Volume"]),
+    } as Row;
+  });
 
   const signals: string[] = [];
 
@@ -65,7 +77,11 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const curr = data[i];
     const prev = data[i - 1];
     if (!curr || !prev) continue;
-    if (!(toNum(curr.Close) > 0) || !(toNum(curr.Volume) > 0) || !(toNum(prev.Volume) > 0)) continue;
+
+    const close = toNum(curr.Close);
+    const volume = toNum(curr.Volume);
+    const prevVolume = toNum(prev.Volume);
+    if (!(close > 0) || !(volume > 0) || !(prevVolume > 0)) continue;
 
     const rsi = calcRSI(data, 14, i);
     const ma9 = calcMA(data, 9, i);
@@ -73,16 +89,16 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const ma50 = calcMA(data, 50, i);
     const ma200 = calcMA(data, 200, i);
 
-    const vol1d = ((toNum(curr.Volume) - toNum(prev.Volume)) / toNum(prev.Volume)) * 100;
+    const vol1d = ((volume - prevVolume) / prevVolume) * 100;
 
     const parts: string[] = [
       `${curr.Date}`,
-      `Close: ${toNum(curr.Close).toFixed(2)}`,
+      `Close: ${close.toFixed(2)}`,
       `RSI: ${rsi !== null ? rsi.toFixed(1) : "—"}`,
       `VolΔ: ${isFinite(vol1d) ? vol1d.toFixed(1) + "%" : "—"}`
     ];
 
-    // Сильные сигналы
+    // Сильные сигналы (бейджи)
     if (ma50 && ma200 && ma50 > ma200) parts.push("🟢 Golden Cross");
     if (ma50 && ma200 && ma50 < ma200) parts.push("🔴 Death Cross");
     if (rsi !== null && rsi < 30) parts.push("📉 Перепродан");
@@ -97,7 +113,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     if (filters?.maFilter) {
       const maMap: Record<string, number | null> = { "9": ma9, "21": ma21, "50": ma50, "200": ma200 };
       const sel = maMap[filters.maFilter];
-      if (!sel || toNum(curr.Close) < sel) continue; // требуем Цена > выбранной MA
+      if (!sel || close < sel) continue; // требуем Цена > выбранной MA
     }
 
     // Быстрые пресеты
@@ -110,5 +126,5 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     signals.push(parts.join(" | "));
   }
 
-  res.status(200).json({ signals });
+  return res.status(200).json({ signals });
 }
