@@ -38,15 +38,26 @@ function calcRSI(data: Row[], period = 14, idx: number) {
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ message: "Method not allowed" });
 
-  const { rows, filters } = req.body || {};
+  const { rows, filters } = (req.body ?? {}) as {
+    rows?: Array<Record<string, unknown>>;
+    filters?: {
+      minRSI?: string;
+      maxRSI?: string;
+      minVolumeChange?: string;
+      maxVolumeChange?: string;
+      maFilter?: "" | "9" | "21" | "50" | "200";
+      quickSignal?: "" | "RSI_LOW" | "RSI_HIGH" | "VOLUME" | "GOLDEN" | "DEATH";
+    };
+  };
+
   if (!Array.isArray(rows)) return res.status(400).json({ message: "Invalid data" });
 
-  // Приводим входные данные к числам
-  const data: Row[] = rows.map((r: any) => ({
-    ...r,
-    Close: toNum(r.Close),
-    Volume: toNum(r.Volume),
-  }));
+  // Приводим входные данные к типу Row и числам (без any)
+  const data: Row[] = rows.map((r) => ({
+    ...(r as Record<string, string | number>),
+    Close: toNum((r as Record<string, unknown>)["Close"]),
+    Volume: toNum((r as Record<string, unknown>)["Volume"]),
+  })) as Row[];
 
   const signals: string[] = [];
 
@@ -64,7 +75,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
     const vol1d = ((toNum(curr.Volume) - toNum(prev.Volume)) / toNum(prev.Volume)) * 100;
 
-    let parts: string[] = [
+    const parts: string[] = [
       `${curr.Date}`,
       `Close: ${toNum(curr.Close).toFixed(2)}`,
       `RSI: ${rsi !== null ? rsi.toFixed(1) : "—"}`,
@@ -78,7 +89,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     if (rsi !== null && rsi > 70) parts.push("📈 Перекуплен");
     if (isFinite(vol1d) && vol1d > 200) parts.push("💎 Всплеск объёма");
 
-    // Применяем ручные фильтры
+    // Ручные фильтры
     if (filters?.minRSI && rsi !== null && rsi < Number(filters.minRSI)) continue;
     if (filters?.maxRSI && rsi !== null && rsi > Number(filters.maxRSI)) continue;
     if (filters?.minVolumeChange && isFinite(vol1d) && vol1d < Number(filters.minVolumeChange)) continue;
